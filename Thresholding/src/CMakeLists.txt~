@@ -1,0 +1,19 @@
+cmake_minimum_required(VERSION 3.10)
+
+project(Thresholding)  # Name of your project
+
+# Set the C++ standard you're using (e.g., C++17)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+# Find ITK package
+find_package(ITK REQUIRED)
+include(${ITK_USE_FILE})
+
+find_package(OpenCV REQUIRED)
+include_directories(${OpenCV_INCLUDE_DIRS})
+
+add_executable(Thresholding thresholding.cxx)
+
+target_link_libraries(Thresholding ${ITK_LIBRARIES} ${OpenCV_LIBS})
+

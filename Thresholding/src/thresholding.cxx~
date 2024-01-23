@@ -1,0 +1,84 @@
+#include "itkImage.h"
+#include "itkImageFileReader.h"
+#include "itkImageFileWriter.h"
+#include "itkBinaryThresholdImageFilter.h"
+#include "itkOtsuMultipleThresholdsImageFilter.h"
+#include "itkAdaptiveHistogramEqualizationImageFilter.h"
+#include "itkSmoothingRecursiveGaussianImageFilter.h"
+
+constexpr unsigned int Dimension = 3;
+using PixelType = signed short;
+using ImageType = itk::Image<PixelType, Dimension>;
+using ReaderType = itk::ImageFileReader<ImageType>;
+using WriterType = itk::ImageFileWriter<ImageType>;
+using BinaryThresholdFilterType = itk::BinaryThresholdImageFilter<ImageType, ImageType>;
+using OtsuThresholdFilterType = itk::OtsuMultipleThresholdsImageFilter<ImageType, ImageType>;
+using AdaptiveEqualizationFilterType = itk::AdaptiveHistogramEqualizationImageFilter<ImageType>;
+
+void CustomWriteImage(const ImageType::Pointer &image, const char *fileName)
+{
+    auto writer = WriterType::New();
+    writer->SetFileName(fileName);
+    writer->SetInput(image);
+
+    try
+    {
+        writer->Update();
+    }
+    catch (const itk::ExceptionObject &error)
+    {
+        std::cerr << "Error: " << error << std::endl;
+    }
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc < 2)
+    {
+        std::cerr << "Usage: " << argv[0] << " <InputFileName>" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    const char *inputFileName = argv[1];
+
+    auto reader = ReaderType::New();
+    reader->SetFileName(inputFileName);
+    reader->Update();
+
+    // Preprocessing with Gaussian Smoothing
+    using GaussianFilterType = itk::SmoothingRecursiveGaussianImageFilter<ImageType, ImageType>;
+    auto gaussianFilter = GaussianFilterType::New();
+    gaussianFilter->SetInput(reader->GetOutput());
+    gaussianFilter->SetSigma(1.0);  // Sigma value can be adjusted as needed
+    gaussianFilter->Update();
+
+    // Otsu Multiple Thresholds Thresholding
+    auto otsuThresholdFilter = OtsuThresholdFilterType::New();
+    otsuThresholdFilter->SetInput(gaussianFilter->GetOutput());
+    otsuThresholdFilter->SetNumberOfHistogramBins(256);
+    otsuThresholdFilter->SetNumberOfThresholds(3); // Example value, can be adjusted
+    otsuThresholdFilter->SetLabelOffset(1); // Example value, can be adjusted
+    otsuThresholdFilter->Update();
+    CustomWriteImage(otsuThresholdFilter->GetOutput(), "otsuMultipleThresholdsResult.nii");
+
+    // Binary Thresholding
+    auto binaryThresholdFilter = BinaryThresholdFilterType::New();
+    binaryThresholdFilter->SetInput(reader->GetOutput());
+    binaryThresholdFilter->SetLowerThreshold(100);
+    binaryThresholdFilter->SetUpperThreshold(200);
+    binaryThresholdFilter->SetInsideValue(255);
+    binaryThresholdFilter->SetOutsideValue(0);
+    binaryThresholdFilter->Update();
+    CustomWriteImage(binaryThresholdFilter->GetOutput(), "binaryThresholdResult.nii");
+
+    // Adaptive Histogram Equalization
+    auto adaptiveEqualizationFilter = AdaptiveEqualizationFilterType::New();
+    adaptiveEqualizationFilter->SetInput(reader->GetOutput());
+    adaptiveEqualizationFilter->SetAlpha(0.3);
+    adaptiveEqualizationFilter->SetBeta(0.3);
+    adaptiveEqualizationFilter->SetRadius(5);
+    adaptiveEqualizationFilter->Update();
+    CustomWriteImage(adaptiveEqualizationFilter->GetOutput(), "adaptiveHistogramEqualizationResult.nii");
+
+    return EXIT_SUCCESS;
+}
